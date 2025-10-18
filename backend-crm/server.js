@@ -1,402 +1,237 @@
-require(\'dotenv\').config();
-const express = require(\'express\');
-const cors = require(\'cors\');
-const cookieParser = require(\'cookie-parser\');
-const bcrypt = require(\'bcryptjs\');
-const jwt = require(\'jsonwebtoken\');
-const { pool, initDatabase } = require(\'./database\');
+const express = require('express');
+const dotenv = require('dotenv');
+const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
+// Carregar variáveis de ambiente do .env
+dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || \'seu-secret-super-seguro-aqui-123\';
+const port = process.env.PORT || 5000;
+
+// Configuração do CORS
+app.use(cors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000', // Permitir acesso do frontend
+    credentials: true // Importante para cookies e sessões
+} ));
 
 // Middlewares
-app.use(cors({
-  origin: process.env.FRONTEND_URL || \'*\',
-  credentials: true
-}));
-app.use(express.json());
-app.use(cookieParser());
+app.use(express.json()); // Para parsear JSON no corpo das requisições
+app.use(cookieParser()); // Para parsear cookies
 
-// Middleware de autenticação
-function authenticateToken(req, res, next) {
-  const token = req.cookies.token || req.headers.authorization?.split(\' \')[1];
-  
-  if (!token) {
-    return res.status(401).json({ error: \'Não autenticado\' });
-  }
-
-  try {
-    const user = jwt.verify(token, JWT_SECRET);
-    req.user = user;
-    next();
-  } catch (error) {
-    return res.status(403).json({ error: \'Token inválido\' });
-  }
-}
-
-// Rota raiz
-app.get(\'/\', (req, res) => {
-  res.json({
-    mensagem: \'API do CRM de Gás - Dr. Gilson\',
-    versao: \'2.0.0\',
-    status: \'online\',
-    servidor: \'Railway\'
-  });
-});
-
-// ==================== ROTAS DE AUTENTICAÇÃO ====================
-
-// Rota para verificar se um administrador já existe (NÃO REQUER AUTENTICAÇÃO)
-app.get(\'/api/setup/verificar-admin\', async (req, res) => {
-  try {
-    const result = await pool.query(\"SELECT COUNT(*) FROM usuarios WHERE tipo = \'admin\'\");
-    const adminExists = parseInt(result.rows[0].count) > 0;
-    res.status(200).json({ adminExists });
-  } catch (error) {
-    console.error(\'Erro ao verificar administrador:\', error);
-    res.status(500).json({ error: \'Erro interno do servidor\' });
-  }
-});
-
-// Criar administrador inicial
-app.post(\'/api/setup/criar-admin\', async (req, res) => {
-  try {
-    const { nome, email, senha } = req.body;
-
-    // Verificar se já existe algum usuário
-    const usuariosExistentes = await pool.query(\'SELECT COUNT(*) FROM usuarios\');
-    if (parseInt(usuariosExistentes.rows[0].count) > 0) {
-      return res.status(400).json({ error: \'Administrador já existe\' });
+// Configuração do banco de dados PostgreSQL
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false // Necessário para Render ou outros provedores com SSL self-signed
     }
+});
 
-    // Hash da senha
-    const senhaHash = await bcrypt.hash(senha, 10);
+// Middleware para verificar token JWT
+const authenticateToken = (req, res, next) => {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ message: 'Acesso negado. Token não fornecido.' });
 
-    // Criar usuário admin
-    const result = await pool.query(
-      \'INSERT INTO usuarios (nome, email, senha, tipo) VALUES ($1, $2, $3, $4) RETURNING id, nome, email, tipo\',
-      [nome, email, senhaHash, \'admin\']
-    );
-
-    const usuario = result.rows[0];
-
-    // Gerar token
-    const token = jwt.sign(
-      { id: usuario.id, email: usuario.email, tipo: usuario.tipo },
-      JWT_SECRET,
-      { expiresIn: \'7d\' }
-    );
-
-    res.cookie(\'token\', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === \'production\',
-      sameSite: \'lax\',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 dias
-    } );
-
-    res.json({
-      mensagem: \'Administrador criado com sucesso\',
-      usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, tipo: usuario.tipo },
-      token
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+        if (err) return res.status(403).json({ message: 'Token inválido.' });
+        req.user = user;
+        next();
     });
-  } catch (error) {
-    console.error(\'Erro ao criar admin:\', error);
-    res.status(500).json({ error: \'Erro ao criar administrador\' });
-  }
-});
+};
 
-// Login
-app.post(\'/api/auth/login\', async (req, res) => {
-  try {
-    const { email, senha } = req.body;
+// Rota de registro de admin (apenas para configuração inicial)
+app.post('/api/setup/registrar-admin', async (req, res) => {
+    try {
+        const { username, password } = req.body;
 
-    const result = await pool.query(\'SELECT * FROM usuarios WHERE email = $1\', [email]);
-    
-    if (result.rows.length === 0) {
-      return res.status(401).json({ error: \'Email ou senha incorretos\' });
+        // Verificar se já existe algum admin
+        const adminCheck = await pool.query('SELECT * FROM users WHERE role = $1', ['admin']);
+        if (adminCheck.rows.length > 0) {
+            return res.status(403).json({ message: 'Admin já registrado. Operação não permitida.' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const newUser = await pool.query(
+            'INSERT INTO users (username, password, role) VALUES ($1, $2, $3) RETURNING *',
+            [username, hashedPassword, 'admin']
+        );
+        res.status(201).json({ message: 'Admin registrado com sucesso!', user: newUser.rows[0] });
+    } catch (error) {
+        console.error('Erro ao registrar admin:', error);
+        res.status(500).json({ message: 'Erro interno do servidor.' });
     }
+});
 
-    const usuario = result.rows[0];
-    const senhaValida = await bcrypt.compare(senha, usuario.senha);
-
-    if (!senhaValida) {
-      return res.status(401).json({ error: \'Email ou senha incorretos\' });
+// Rota para verificar se o admin já foi registrado (SEM AUTENTICAÇÃO)
+app.get('/api/setup/verificar-admin', async (req, res) => {
+    try {
+        const adminCheck = await pool.query('SELECT * FROM users WHERE role = $1', ['admin']);
+        if (adminCheck.rows.length > 0) {
+            return res.json({ adminRegistered: true });
+        } else {
+            return res.json({ adminRegistered: false });
+        }
+    } catch (error) {
+        console.error('Erro ao verificar admin:', error);
+        res.status(500).json({ message: 'Erro interno do servidor.' });
     }
-
-    const token = jwt.sign(
-      { id: usuario.id, email: usuario.email, tipo: usuario.tipo },
-      JWT_SECRET,
-      { expiresIn: \'7d\' }
-    );
-
-    res.cookie(\'token\', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === \'production\',
-      sameSite: \'lax\',
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    } );
-
-    res.json({
-      mensagem: \'Login realizado com sucesso\',
-      usuario: { id: usuario.id, nome: usuario.email, tipo: usuario.tipo },
-      token
-    });
-  } catch (error) {
-    console.error(\'Erro no login:\', error);
-    res.status(500).json({ error: \'Erro ao fazer login\' });
-  }
 });
 
-// Verificar autenticação (requer token)
-app.get(\'/api/auth/verificar\', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(
-      \'SELECT id, nome, email, tipo FROM usuarios WHERE id = $1\',
-      [req.user.id]
-    );
+// Rota de login
+app.post('/api/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const user = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: \'Usuário não encontrado\' });
+        if (user.rows.length === 0) {
+            return res.status(400).json({ message: 'Credenciais inválidas.' });
+        }
+
+        const validPassword = await bcrypt.compare(password, user.rows[0].password);
+        if (!validPassword) {
+            return res.status(400).json({ message: 'Credenciais inválidas.' });
+        }
+
+        const token = jwt.sign({ id: user.rows[0].id, role: user.rows[0].role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+        res.cookie('token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'Lax' } );
+        res.json({ message: 'Login bem-sucedido!', role: user.rows[0].role });
+
+    } catch (error) {
+        console.error('Erro no login:', error);
+        res.status(500).json({ message: 'Erro interno do servidor.' });
     }
-
-    res.json({ usuario: result.rows[0] });
-  } catch (error) {
-    console.error(\'Erro ao verificar autenticação:\', error);
-    res.status(500).json({ error: \'Erro ao verificar autenticação\' });
-  }
 });
 
-// Logout
-app.post(\'/api/auth/logout\', (req, res) => {
-  res.clearCookie(\'token\');
-  res.json({ mensagem: \'Logout realizado com sucesso\' });
+// Rota de logout
+app.post('/api/logout', (req, res) => {
+    res.clearCookie('token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'Lax' } );
+    res.json({ message: 'Logout bem-sucedido!' });
 });
 
-// ==================== ROTAS DE CLIENTES ====================
-
-// Listar todos os clientes
-app.get(\'/api/clientes\', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT c.*, 
-        CASE 
-          WHEN c.ultima_compra IS NULL THEN false
-          WHEN CURRENT_DATE - c.ultima_compra >= c.ciclo_compra THEN true
-          ELSE false
-        END as em_alerta
-      FROM clientes c
-      ORDER BY c.nome ASC
-    `);
-
-    res.json({ clientes: result.rows });
-  } catch (error) {
-    console.error(\'Erro ao listar clientes:\', error);
-    res.status(500).json({ error: \'Erro ao listar clientes\' });
-  }
+// Rota para verificar o status de autenticação
+app.get('/api/auth-status', authenticateToken, (req, res) => {
+    res.json({ authenticated: true, role: req.user.role });
 });
 
-// Criar novo cliente
-app.post(\'/api/clientes\', authenticateToken, async (req, res) => {
-  try {
-    const { nome, telefone, endereco, ciclo_compra } = req.body;
+// Rotas de gerenciamento de clientes (protegidas)
+app.get('/api/clientes', authenticateToken, async (req, res) => {
+    try {
+        const { search, bairro, page = 1, limit = 10 } = req.query;
+        const offset = (page - 1) * limit;
+        let query = 'SELECT * FROM clientes';
+        let countQuery = 'SELECT COUNT(*) FROM clientes';
+        const params = [];
+        const countParams = [];
+        const conditions = [];
 
-    const result = await pool.query(
-      \'INSERT INTO clientes (nome, telefone, endereco, ciclo_compra) VALUES ($1, $2, $3, $4) RETURNING *\',
-      [nome, telefone, endereco, ciclo_compra || 30]
-    );
+        if (search) {
+            conditions.push(`(nome ILIKE $${params.length + 1} OR telefone ILIKE $${params.length + 1})`);
+            params.push(`%${search}%`);
+            countParams.push(`%${search}%`);
+        }
+        if (bairro) {
+            conditions.push(`bairro ILIKE $${params.length + 1}`);
+            params.push(`%${bairro}%`);
+            countParams.push(`%${bairro}%`);
+        }
 
-    res.json({ mensagem: \'Cliente cadastrado com sucesso\', cliente: result.rows[0] });
-  } catch (error) {
-    console.error(\'Erro ao criar cliente:\', error);
-    res.status(500).json({ error: \'Erro ao cadastrar cliente\' });
-  }
-});
+        if (conditions.length > 0) {
+            query += ' WHERE ' + conditions.join(' AND ');
+            countQuery += ' WHERE ' + conditions.join(' AND ');
+        }
 
-// Atualizar cliente
-app.put(\'/api/clientes/:id\', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { nome, telefone, endereco, ciclo_compra } = req.body;
+        query += ` ORDER BY nome ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+        params.push(limit, offset);
 
-    const result = await pool.query(
-      \'UPDATE clientes SET nome = $1, telefone = $2, endereco = $3, ciclo_compra = $4, atualizado_em = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *\',
-      [nome, telefone, endereco, ciclo_compra, id]
-    );
+        const result = await pool.query(query, params);
+        const totalClientes = await pool.query(countQuery, countParams);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: \'Cliente não encontrado\' });
+        res.json({
+            clientes: result.rows,
+            totalPages: Math.ceil(totalClientes.rows[0].count / limit),
+            currentPage: parseInt(page)
+        });
+    } catch (error) {
+        console.error('Erro ao buscar clientes:', error);
+        res.status(500).json({ message: 'Erro interno do servidor.' });
     }
-
-    res.json({ mensagem: \'Cliente atualizado com sucesso\', cliente: result.rows[0] });
-  } catch (error) {
-    console.error(\'Erro ao atualizar cliente:\', error);
-    res.status(500).json({ error: \'Erro ao atualizar cliente\' });
-  }
 });
 
-// Deletar cliente
-app.delete(\'/api/clientes/:id\', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const result = await pool.query(\'DELETE FROM clientes WHERE id = $1 RETURNING *\', [id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: \'Cliente não encontrado\' });
+app.post('/api/clientes', authenticateToken, async (req, res) => {
+    try {
+        const { nome, telefone, endereco, bairro, observacoes } = req.body;
+        const newClient = await pool.query(
+            'INSERT INTO clientes (nome, telefone, endereco, bairro, observacoes) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+            [nome, telefone, endereco, bairro, observacoes]
+        );
+        res.status(201).json(newClient.rows[0]);
+    } catch (error) {
+        console.error('Erro ao adicionar cliente:', error);
+        res.status(500).json({ message: 'Erro interno do servidor.' });
     }
-
-    res.json({ mensagem: \'Cliente deletado com sucesso\' });
-  } catch (error) {
-    console.error(\'Erro ao deletar cliente:\', error);
-    res.status(500).json({ error: \'Erro ao deletar cliente\' });
-  }
 });
 
-// Registrar compra
-app.post(\'/api/clientes/:id/compra\', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { data_compra, valor, observacoes } = req.body;
-
-    // Registrar compra
-    await pool.query(
-      \'INSERT INTO compras (cliente_id, data_compra, valor, observacoes) VALUES ($1, $2, $3, $4)\',
-      [id, data_compra || new Date(), valor, observacoes]
-    );
-
-    // Atualizar última compra do cliente
-    await pool.query(
-      \'UPDATE clientes SET ultima_compra = $1, atualizado_em = CURRENT_TIMESTAMP WHERE id = $2\',
-      [data_compra || new Date(), id]
-    );
-
-    res.json({ mensagem: \'Compra registrada com sucesso\' });
-  } catch (error) {
-    console.error(\'Erro ao registrar compra:\', error);
-    res.status(500).json({ error: \'Erro ao registrar compra\' });
-  }
+app.put('/api/clientes/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { nome, telefone, endereco, bairro, observacoes } = req.body;
+        const updatedClient = await pool.query(
+            'UPDATE clientes SET nome = $1, telefone = $2, endereco = $3, bairro = $4, observacoes = $5 WHERE id = $6 RETURNING *',
+            [nome, telefone, endereco, bairro, observacoes, id]
+        );
+        if (updatedClient.rows.length === 0) {
+            return res.status(404).json({ message: 'Cliente não encontrado.' });
+        }
+        res.json(updatedClient.rows[0]);
+    } catch (error) {
+        console.error('Erro ao atualizar cliente:', error);
+        res.status(500).json({ message: 'Erro interno do servidor.' });
+    }
 });
 
-// ==================== ROTAS DE USUÁRIOS ====================
-
-// Listar usuários
-app.get(\'/api/usuarios\', authenticateToken, async (req, res) => {
-  try {
-    // Apenas admins podem listar usuários
-    if (req.user.tipo !== \'admin\') {
-      return res.status(403).json({ error: \'Acesso negado\' });
+app.delete('/api/clientes/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deletedClient = await pool.query('DELETE FROM clientes WHERE id = $1 RETURNING *', [id]);
+        if (deletedClient.rows.length === 0) {
+            return res.status(404).json({ message: 'Cliente não encontrado.' });
+        }
+        res.json({ message: 'Cliente excluído com sucesso!' });
+    } catch (error) {
+        console.error('Erro ao excluir cliente:', error);
+        res.status(500).json({ message: 'Erro interno do servidor.' });
     }
-
-    const result = await pool.query(\'SELECT id, nome, email, tipo, criado_em FROM usuarios ORDER BY nome ASC\');
-    res.json({ usuarios: result.rows });
-  } catch (error) {
-    console.error(\'Erro ao listar usuários:\', error);
-    res.status(500).json({ error: \'Erro ao listar usuários\' });
-  }
 });
 
-// Criar novo usuário
-app.post(\'/api/usuarios\', authenticateToken, async (req, res) => {
-  try {
-    // Apenas admins podem criar usuários
-    if (req.user.tipo !== \'admin\') {
-      return res.status(403).json({ error: \'Acesso negado\' });
+// Rota para obter bairros únicos (para filtros)
+app.get('/api/bairros', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query('SELECT DISTINCT bairro FROM clientes WHERE bairro IS NOT NULL AND bairro != \'\' ORDER BY bairro ASC');
+        res.json(result.rows.map(row => row.bairro));
+    } catch (error) {
+        console.error('Erro ao buscar bairros:', error);
+        res.status(500).json({ message: 'Erro interno do servidor.' });
     }
-
-    const { nome, email, senha, tipo } = req.body;
-
-    // Verificar se email já existe
-    const emailExiste = await pool.query(\'SELECT id FROM usuarios WHERE email = $1\', [email]);
-    if (emailExiste.rows.length > 0) {
-      return res.status(400).json({ error: \'Email já cadastrado\' });
-    }
-
-    const senhaHash = await bcrypt.hash(senha, 10);
-
-    const result = await pool.query(
-      \'INSERT INTO usuarios (nome, email, senha, tipo) VALUES ($1, $2, $3, $4) RETURNING id, nome, email, tipo\',
-      [nome, email, senhaHash, tipo || \'comum\']
-    );
-
-    res.json({ mensagem: \'Usuário criado com sucesso\', usuario: result.rows[0] });
-  } catch (error) {
-    console.error(\'Erro ao criar usuário:\', error);
-    res.status(500).json({ error: \'Erro ao criar usuário\' });
-  }
 });
 
-// Deletar usuário
-app.delete(\'/api/usuarios/:id\', authenticateToken, async (req, res) => {
-  try {
-    // Apenas admins podem deletar usuários
-    if (req.user.tipo !== \'admin\') {
-      return res.status(403).json({ error: \'Acesso negado\' });
+// Rota de relatórios (exemplo: contagem de clientes por bairro)
+app.get('/api/relatorios/clientes-por-bairro', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT bairro, COUNT(*) FROM clientes GROUP BY bairro ORDER BY COUNT(*) DESC'
+        );
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Erro ao gerar relatório de clientes por bairro:', error);
+        res.status(500).json({ message: 'Erro interno do servidor.' });
     }
-
-    const { id } = req.params;
-
-    // Não pode deletar a si mesmo
-    if (parseInt(id) === req.user.id) {
-      return res.status(400).json({ error: \'Você não pode deletar sua própria conta\' });
-    }
-
-    const result = await pool.query(\'DELETE FROM usuarios WHERE id = $1 RETURNING *\', [id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: \'Usuário não encontrado\' });
-    }
-
-    res.json({ mensagem: \'Usuário deletado com sucesso\' });
-  } catch (error) {
-    console.error(\'Erro ao deletar usuário:\', error);
-    res.status(500).json({ error: \'Erro ao deletar usuário\' });
-  }
 });
 
-// ==================== ROTAS DE ESTATÍSTICAS ====================
-
-app.get(\'/api/estatisticas\', authenticateToken, async (req, res) => {
-  try {
-    // Total de clientes
-    const totalClientes = await pool.query(\'SELECT COUNT(*) FROM clientes\');
-    
-    // Clientes em alerta
-    const clientesAlerta = await pool.query(`
-      SELECT COUNT(*) FROM clientes 
-      WHERE ultima_compra IS NULL 
-      OR CURRENT_DATE - ultima_compra >= ciclo_compra
-    `);
-
-    // Compras hoje
-    const comprasHoje = await pool.query(`
-      SELECT COUNT(*) FROM compras 
-      WHERE DATE(data_compra) = CURRENT_DATE
-    `);
-
-    res.json({
-      total_clientes: parseInt(totalClientes.rows[0].count),
-      clientes_alerta: parseInt(clientesAlerta.rows[0].count),
-      mensagens_hoje: parseInt(comprasHoje.rows[0].count)
-    });
-  } catch (error) {
-    console.error(\'Erro ao buscar estatísticas:\', error);
-    res.status(500).json({ error: \'Erro ao buscar estatísticas\' });
-  }
+// Iniciar o servidor
+app.listen(port, () => {
+    console.log(`Servidor rodando na porta ${port}`);
 });
-
-// Inicializar servidor
-async function startServer() {
-  try {
-    await initDatabase();
-    app.listen(PORT, () => {
-      console.log(`🚀 Servidor rodando na porta ${PORT}`);
-      console.log(`📊 Ambiente: ${process.env.NODE_ENV || \'development\'}`);
-    });
-  } catch (error) {
-    console.error(\'❌ Erro ao iniciar servidor:\', error);
-    process.exit(1);
-  }
-}
-
-startServer();
