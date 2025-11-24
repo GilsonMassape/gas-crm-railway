@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>CRM GAS</title>
+    <style>
+      :root{
+        /* amarelo estilo "Claude" (podemos ajustar depois) */
+        --brand:#F9C74F;
+        --ink:#222;
+        --bg:#fffbea;
+        --card:#ffffff;
+        --muted:#666;
+      }
+      body{margin:0;background:var(--bg);font-family:system-ui,Segoe UI,Arial,sans-serif;color:var(--ink);}
+      header{background:var(--brand);padding:16px 20px;font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+      .wrap{max-width:1100px;margin:24px auto;padding:0 16px}
+      .tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+      .tab{background:var(--card);border:1px solid #eee;border-radius:10px;padding:10px 12px;cursor:pointer}
+      .tab.active{outline:2px solid var(--brand)}
+      .card{background:var(--card);border:1px solid #eee;border-radius:12px;padding:16px;margin-bottom:12px}
+      button{background:var(--brand);border:none;border-radius:10px;padding:10px 12px;cursor:pointer}
+      input,select{padding:8px;border:1px solid #ddd;border-radius:8px}
+      table{width:100%;border-collapse:collapse}
+      th,td{padding:10px;border-bottom:1px solid #eee;text-align:left}
+      small{color:var(--muted)}
+    </style>
+    <script type="module" crossorigin src="/assets/index-C0YP8SuF.js"></script>
+  </head>
+  <body>
+    <header>CRM GAS — Vendas & Estoque</header>
+    <div id="root" class="wrap"></div>
+  </body>
+</html>
