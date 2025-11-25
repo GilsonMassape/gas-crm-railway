@@ -1,11 +1,11 @@
 import { Router } from 'express';
 // Importe seus controllers de clientes aqui
-// import { createClient, getClients, ... } from '../controllers/clientController';
+import { getClients } from '../controllers/clientController'; // ASSUMIMOS que você tem um controller chamado getClients
 
 const router = Router();
 
 // Exemplo de rota GET para listar clientes
-// router.get('/', getClients);
+router.get('/', getClients); // DESCOMENTADO
 
 // Exemplo de rota POST para criar cliente
 // router.post('/', createClient);
