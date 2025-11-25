@@ -1,13 +1,14 @@
+// C:\crm-gas\backend\src\routes\clientes.routes.ts
+
 import { Router } from 'express';
-// Importe seus controllers de clientes aqui
-import { getClients } from '../controllers/clientController'; // ASSUMIMOS que você tem um controller chamado getClients
+// Importa o controller que você acabou de criar
+import { getClients } from '../controllers/clientes.controller'; // Corrigido para o nome do arquivo que você criou
 
 const router = Router();
 
-// Exemplo de rota GET para listar clientes
-router.get('/', getClients); // DESCOMENTADO
+// Rota GET para listar clientes
+router.get('/', getClients);
 
-// Exemplo de rota POST para criar cliente
-// router.post('/', createClient);
+// ... (outras rotas)
 
 export default router;
