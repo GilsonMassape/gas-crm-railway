@@ -1,16 +1,41 @@
-import React, {useState} from "react";
-export default function Relatorios(){
-  const [de,setDe]=useState(""); const [ate,setAte]=useState("");
-  const [res,setRes]=useState<{qtd:number,total:number}|null>(null);
-  const consultar=async()=>{
-    const q=new URLSearchParams({de,ate}); const r=await fetch("http://localhost:3000/api/relatorios/vendas?"+q.toString());
-    setRes(await r.json());
+import React, { useState, useEffect } from "react";
+import api from "../services/api"; // IMPORTAÇÃO CORRETA DO AXIOS
+
+export default function Relatorios() {
+  const [vendas, setVendas] = useState<any[]>([]);
+  const [total, setTotal] = useState<number | null>(null);
+  const [consultar, setConsultar] = useState(null);
+
+  const getUrlSearchParams = (de: string, ate: string) => {
+    const params = new URLSearchParams();
+    params.append("de", de);
+    params.append("ate", ate);
+    return params;
   };
-  return (<div style={{padding:16}}>
-    <h2>Relatórios de Vendas</h2>
-    <input type="datetime-local" value={de} onChange={e=>setDe(e.target.value)} />{" "}
-    <input type="datetime-local" value={ate} onChange={e=>setAte(e.target.value)} />{" "}
-    <button onClick={consultar}>Consultar</button>
-    {res && <p><b>Vendas:</b> {res.qtd} | <b>Total:</b> R$ {Number(res.total).toFixed(2)}</p>}
-  </div>);
+
+  const consultarVendas = async () => {
+    const de = "2023-01-01"; // Defina a data inicial padrão
+    const ate = new Date().toISOString().split('T')[0]; // Data atual
+
+    const sq = getUrlSearchParams(de, ate);
+
+    // CORREÇÃO: Usando a instância 'api' do Axios e a rota correta
+    const res = await api.get("/relatorios/vendas?" + sq.toString());
+    setTotal(res.data.total);
+    setVendas(res.data.vendas);
+  };
+
+  useEffect(() => {
+    // Chama a função de consulta ao carregar a página
+    consultarVendas();
+  }, []);
+
+  return (
+    <div style={{ padding: 16 }}>
+      <h2>Relatórios de Vendas</h2>
+      {/* O restante do seu JSX para exibir o relatório */}
+      <p>Total de Vendas: R$ {total !== null ? total.toFixed(2) : 'Carregando...'}</p>
+      {/* Tabela de vendas, se houver */}
+    </div>
+  );
 }
