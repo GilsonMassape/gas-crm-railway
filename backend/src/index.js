@@ -16,7 +16,7 @@ const allowedOrigins = [
 
 // Configuração do CORS
 app.use(cors({
-    origin: (origin, callback) => {
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
         // Permite requisições sem 'origin' (como apps mobile ou curl)
         if (!origin) return callback(null, true);
         
