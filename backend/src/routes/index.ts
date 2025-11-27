@@ -1,16 +1,16 @@
 import { Router } from 'express';
-import clientes from "./clientes.routes";
-import produtos from "./produtos.routes";
-import vendas from "./vendas.routes";
-import relatorios from "./relatorios.routes";
-import authRoutes from "./auth.routes"; // NOVO: Importa a rota de autenticação
+import authRoutes from './auth.routes';
+import produtosRoutes from './produtos.routes';
+import vendasRoutes from './vendas.routes';
+import clientesRoutes from './clientes.routes';
 
-const router = Router();
+const routes = Router();
 
-router.use("/clientes", clientes);
-router.use("/produtos", produtos);
-router.use("/vendas", vendas);
-router.use("/relatorios", relatorios);
-router.use("/auth", authRoutes); // NOVO: Usa a rota de autenticação
+// Adiciona o prefixo /api a todas as rotas
+routes.use('/api', authRoutes);
+routes.use('/api', produtosRoutes);
+routes.use('/api', vendasRoutes);
+routes.use('/api', clientesRoutes);
 
-export default router;
+export default routes;
+
