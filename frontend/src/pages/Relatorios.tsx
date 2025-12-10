@@ -1,41 +1,63 @@
-import React, { useState, useEffect } from "react";
-import api from "../services/api"; // IMPORTAÇÃO CORRETA DO AXIOS
+// src/pages/Relatorios.jsx
+import React, { useState } from "react";
+import api from "../services/api";
 
 export default function Relatorios() {
-  const [vendas, setVendas] = useState<any[]>([]);
-  const [total, setTotal] = useState<number | null>(null);
-  const [consultar, setConsultar] = useState(null);
+  const hoje = new Date().toISOString().slice(0, 10);
 
-  const getUrlSearchParams = (de: string, ate: string) => {
-    const params = new URLSearchParams();
-    params.append("de", de);
-    params.append("ate", ate);
-    return params;
+  const [inicio, setInicio] = useState(hoje);
+  const [fim, setFim] = useState(hoje);
+  const [total, setTotal] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const calcular = async () => {
+    try {
+      setLoading(true);
+      const r = await api.get(`/relatorios/lucro?inicio=${inicio}&fim=${fim}`);
+      setTotal(r.data?.total || 0);
+    } catch (err) {
+      console.error("Erro ao carregar relatório:", err);
+    } finally {
+      setLoading(false);
+    }
   };
-
-  const consultarVendas = async () => {
-    const de = "2023-01-01"; // Defina a data inicial padrão
-    const ate = new Date().toISOString().split('T')[0]; // Data atual
-
-    const sq = getUrlSearchParams(de, ate);
-
-    // CORREÇÃO: Usando a instância 'api' do Axios e a rota correta
-    const res = await api.get("/relatorios/vendas?" + sq.toString());
-    setTotal(res.data.total);
-    setVendas(res.data.vendas);
-  };
-
-  useEffect(() => {
-    // Chama a função de consulta ao carregar a página
-    consultarVendas();
-  }, []);
 
   return (
-    <div style={{ padding: 16 }}>
-      <h2>Relatórios de Vendas</h2>
-      {/* O restante do seu JSX para exibir o relatório */}
-      <p>Total de Vendas: R$ {total !== null ? total.toFixed(2) : 'Carregando...'}</p>
-      {/* Tabela de vendas, se houver */}
+    <div className="card">
+      <h3>Relatório de lucro (período)</h3>
+
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+          marginBottom: 12,
+        }}
+      >
+        <input
+          type="date"
+          value={inicio}
+          onChange={(e) => setInicio(e.target.value)}
+        />
+
+        <span>até</span>
+
+        <input
+          type="date"
+          value={fim}
+          onChange={(e) => setFim(e.target.value)}
+        />
+
+        <button onClick={calcular}>Calcular</button>
+      </div>
+
+      {loading && <small>Gerando relatório…</small>}
+
+      {total !== null && !loading && (
+        <p style={{ marginTop: 10 }}>
+          Total do período: <b>R$ {Number(total).toFixed(2)}</b>
+        </p>
+      )}
     </div>
   );
 }
