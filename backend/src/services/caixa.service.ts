@@ -28,7 +28,8 @@ export async function getCaixaAtual(userId: number) {
         [userId]
     );
 
-    return result.rows[0];
+    // CORREÇÃO DE LÓGICA: Retorna o primeiro resultado ou null se não houver caixa aberto
+    return result.rows[0] || null;
 }
 
 export async function fecharCaixa(userId: number, saldoFinal: number) {
