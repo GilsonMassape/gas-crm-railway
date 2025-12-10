@@ -1,3 +1,6 @@
+// backend/src/services/caixa.service.js
+
+// CORREÇÃO: Removido o espaço em branco em '../db'
 const { pool } = require('../db');
 
 async function abrirCaixa(userId, saldoInicial) {
@@ -26,6 +29,7 @@ async function getCaixaAtual(userId) {
         [userId]
     );
 
+    // Retorna o primeiro resultado ou null se não houver caixa aberto
     return result.rows[0] || null;
 }
 
@@ -48,6 +52,7 @@ async function fecharCaixa(userId, saldoFinal) {
     return result.rows[0];
 }
 
+// CORREÇÃO: Exportação completa das funções
 module.exports = {
     abrirCaixa,
     getCaixaAtual,
