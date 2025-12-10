@@ -1,0 +1,112 @@
+/* ---------- RESET ---------- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+/* ---------- BODY ---------- */
+body {
+  background: #fdf7e6;
+  color: #333;
+}
+
+/* ---------- GLOBAL ---------- */
+.card {
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.08);
+  margin-bottom: 20px;
+}
+
+input,
+select,
+button {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 15px;
+  width: 100%;
+}
+
+button {
+  background: #e8a30b;
+  border: none;
+  color: #111;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+button:hover {
+  background: #d08f07;
+}
+
+/* ---------- TABS ---------- */
+.tabs {
+  display: flex;
+  background: #e8a30b;
+  padding: 14px;
+  border-radius: 0 0 8px 8px;
+  margin-bottom: 25px;
+}
+
+.tab {
+  padding: 10px 20px;
+  cursor: pointer;
+  font-weight: bold;
+  color: #222;
+  border-radius: 8px;
+  margin-right: 10px;
+  transition: 0.2s;
+}
+
+.tab:hover {
+  background: rgba(255,255,255,0.4);
+}
+
+.tab.active {
+  background: #fff;
+  border: 2px solid #e8a30b;
+}
+
+/* ---------- TABLE ---------- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+}
+
+table th,
+table td {
+  border: 1px solid #ddd;
+  padding: 10px;
+}
+
+table th {
+  background: #f3e4bd;
+  font-weight: bold;
+}
+
+/* ---------- LOGIN ---------- */
+.login-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 50px;
+}
+
+.login-box {
+  background: #fff;
+  padding: 40px;
+  border-radius: 12px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  width: 350px;
+  text-align: center;
+}
+
+.error {
+  color: red;
+  margin-top: 10px;
+}

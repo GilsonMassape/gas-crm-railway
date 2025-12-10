@@ -1,59 +1,132 @@
-import { useEffect, useState } from "react";
-
-type Produto = { id:number; nome:string; tipo:string; preco:number; estoque:number };
+// src/pages/Produtos.jsx
+import React, { useEffect, useState } from "react";
+import api from "../services/api";
 
 export default function Produtos() {
-  const [itens, setItens] = useState<Produto[]>([]);
-  const [form, setForm] = useState({ nome:"", tipo:"GAS_P13", preco:"", estoque:"0" });
+  const [produtos, setProdutos] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // CORREÇÃO: Removido o prefixo /api/
-    fetch("/produtos").then(r=>r.json()).then(setItens).catch(()=>setItens([]));
-  }, []);
+  const [form, setForm] = useState({
+    nome: "",
+    tipo: "gás",
+    preco: "",
+    estoque: "",
+  });
 
-  const salvar = async () => {
-    // CORREÇÃO: Removido o prefixo /api/
-    await fetch("/produtos", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ 
-        nome: form.nome, 
-        tipo: form.tipo, 
-        preco: Number(form.preco||0), 
-        estoque: Number(form.estoque||0) 
-      })
-    });
-    // CORREÇÃO: Removido o prefixo /api/
-    const nova = await fetch("/produtos").then(r=>r.json());
-    setItens(nova);
-    setForm({ nome:"", tipo:"GAS_P13", preco:"", estoque:"0" });
+  const carregarProdutos = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get("/produtos");
+      setProdutos(res.data || []);
+    } catch (err) {
+      console.error("Erro ao buscar produtos:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  return (
-    <div style={{padding:16}}>
-      <h1>Produtos</h1>
+  const salvarProduto = async () => {
+    try {
+      await api.post("/produtos", {
+        ...form,
+        preco: Number(form.preco),
+        estoque: Number(form.estoque),
+      });
 
-      <div style={{display:"grid",gap:8,maxWidth:480}}>
-        <input placeholder="Nome" value={form.nome} onChange={e=>setForm({...form,nome:e.target.value})}/>
-        <select value={form.tipo} onChange={e=>setForm({...form,tipo:e.target.value})}>
-          <option value="GAS_P13">Gás P13</option>
-          <option value="AGUA_MINERAL">Água mineral</option>
-          <option value="AGUA_DESSALINIZADA">Água dessalinizada</option>
-        </select>
-        <input placeholder="Preço" value={form.preco} onChange={e=>setForm({...form,preco:e.target.value})}/>
-        <input placeholder="Estoque" value={form.estoque} onChange={e=>setForm({...form,estoque:e.target.value})}/>
-        <button onClick={salvar}>Salvar</button>
+      setForm({ nome: "", tipo: "gás", preco: "", estoque: "" });
+      carregarProdutos();
+    } catch (err) {
+      console.error("Erro ao salvar produto:", err);
+    }
+  };
+
+  const removerProduto = async (id) => {
+    try {
+      await api.delete(`/produtos/${id}`);
+      carregarProdutos();
+    } catch (err) {
+      console.error("Erro ao remover produto:", err);
+    }
+  };
+
+  useEffect(() => {
+    carregarProdutos();
+  }, []);
+
+  return (
+    <div>
+      <div className="card">
+        <h3>Novo produto</h3>
+
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 8 }}>
+          <input
+            placeholder="nome"
+            value={form.nome}
+            onChange={(e) => setForm({ ...form, nome: e.target.value })}
+          />
+
+          <select
+            value={form.tipo}
+            onChange={(e) => setForm({ ...form, tipo: e.target.value })}
+          >
+            <option value="gás">gás</option>
+            <option value="água">água</option>
+          </select>
+
+          <input
+            placeholder="preço"
+            value={form.preco}
+            onChange={(e) => setForm({ ...form, preco: e.target.value })}
+          />
+
+          <input
+            placeholder="estoque"
+            value={form.estoque}
+            onChange={(e) => setForm({ ...form, estoque: e.target.value })}
+          />
+        </div>
+
+        <div style={{ marginTop: 10 }}>
+          <button onClick={salvarProduto}>Salvar</button>
+        </div>
       </div>
 
-      <hr/>
-      <table>
-        <thead><tr><th>ID</th><th>Nome</th><th>Tipo</th><th>Preço</th><th>Estoque</th></tr></thead>
-        <tbody>
-          {itens.map(p=>(
-            <tr key={p.id}><td>{p.id}</td><td>{p.nome}</td><td>{p.tipo}</td><td>{p.preco}</td><td>{p.estoque}</td></tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="card">
+        <h3>Estoque</h3>
+
+        {loading ? (
+          <small>Carregando…</small>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Nome</th>
+                <th>Tipo</th>
+                <th>Preço</th>
+                <th>Estoque</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {produtos.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.id}</td>
+                  <td>{p.nome}</td>
+                  <td>{p.tipo}</td>
+                  <td>R$ {Number(p.preco).toFixed(2)}</td>
+                  <td>{p.estoque}</td>
+
+                  <td>
+                    <button onClick={() => removerProduto(p.id)}>Excluir</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }

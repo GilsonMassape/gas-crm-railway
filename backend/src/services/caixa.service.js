@@ -1,8 +1,6 @@
-// backend/src/services/caixa.service.ts
+const { pool } = require('../db');
 
-import { pool } from '../db';
-
-export async function abrirCaixa(userId: number, saldoInicial: number) {
+async function abrirCaixa(userId, saldoInicial) {
     // 1. Verificar se já existe um caixa aberto para este usuário
     const caixaAtual = await getCaixaAtual(userId);
     if (caixaAtual) {
@@ -20,19 +18,18 @@ export async function abrirCaixa(userId: number, saldoInicial: number) {
     return result.rows[0];
 }
 
-export async function getCaixaAtual(userId: number) {
-    // CORREÇÃO APLICADA: Trocando 'usuario_abertura_id' por 'usuario_id'
+async function getCaixaAtual(userId) {
+    // CORREÇÃO: Usando 'usuario_id' que é a coluna correta
     const result = await pool.query(
         `SELECT * FROM caixas 
          WHERE usuario_id = $1 AND status = 'aberto'`,
         [userId]
     );
 
-    // CORREÇÃO DE LÓGICA: Retorna o primeiro resultado ou null se não houver caixa aberto
     return result.rows[0] || null;
 }
 
-export async function fecharCaixa(userId: number, saldoFinal: number) {
+async function fecharCaixa(userId, saldoFinal) {
     // 1. Obter o caixa atual
     const caixaAtual = await getCaixaAtual(userId);
     if (!caixaAtual) {
@@ -50,3 +47,9 @@ export async function fecharCaixa(userId: number, saldoFinal: number) {
 
     return result.rows[0];
 }
+
+module.exports = {
+    abrirCaixa,
+    getCaixaAtual,
+    fecharCaixa
+};
